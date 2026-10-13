@@ -1,0 +1,10 @@
+{
+  "venture": "PactTrail",
+  "lab": "Lab 15 — IPFS + Pinata: CID + pin + resolve",
+  "session": "Sesión 18",
+  "description": "Escrow ERC-20 para redes EVM públicas. El pagador crea y financia un contrato; un verificador confirma cada requisito con un hash de evidencia; cualquiera puede ejecutar la liberación al beneficiario.",
+  "message": "Artefacto de prueba sin PII — usado para demostrar el ciclo content-addressed completo.",
+  "version": "1.0.0",
+  "date": "2026-10-13",
+  "tags": ["ipfs", "pinata", "content-addressed", "escrow", "evm"]
+}

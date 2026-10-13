@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lab 15 — IPFS + Pinata | PactTrail</title>
+  <meta name="description" content="Lab 15: Ciclo content-addressed completo con IPFS y Pinata. Venture PactTrail — Sesión 18." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:        #050810;
+      --bg2:       #0b0f1a;
+      --bg3:       #111827;
+      --surface:   rgba(255,255,255,0.04);
+      --border:    rgba(255,255,255,0.08);
+      --border2:   rgba(99,179,237,0.25);
+      --cyan:      #38bdf8;
+      --cyan2:     #0ea5e9;
+      --violet:    #a78bfa;
+      --violet2:   #7c3aed;
+      --green:     #34d399;
+      --red:       #f87171;
+      --amber:     #fbbf24;
+      --text:      #f1f5f9;
+      --text2:     #94a3b8;
+      --text3:     #64748b;
+      --glow-c:    rgba(56,189,248,0.15);
+      --glow-v:    rgba(167,139,250,0.15);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── BACKGROUND ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(56,189,248,0.07) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 80%, rgba(167,139,250,0.07) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    /* ── LAYOUT ── */
+    .wrapper { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 1.5rem 5rem; }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; gap: 1rem;
+      padding: 1rem 2rem;
+      background: rgba(5,8,16,0.8);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-brand { font-size: .85rem; font-weight: 700; letter-spacing: .08em; color: var(--cyan); text-transform: uppercase; }
+    .nav-sep { color: var(--text3); }
+    .nav-sub { font-size: .8rem; color: var(--text2); }
+    .nav-badge {
+      margin-left: auto;
+      font-size: .7rem; font-weight: 600; letter-spacing: .05em;
+      padding: .25rem .75rem; border-radius: 99px;
+      background: rgba(52,211,153,0.12);
+      color: var(--green);
+      border: 1px solid rgba(52,211,153,0.3);
+      text-transform: uppercase;
+    }
+    .nav-badge::before { content: '● '; }
+
+    /* ── HERO ── */
+    .hero {
+      padding: 5rem 0 3rem;
+      text-align: center;
+    }
+    .hero-label {
+      display: inline-block;
+      font-size: .75rem; font-weight: 600; letter-spacing: .12em;
+      color: var(--cyan); text-transform: uppercase;
+      padding: .3rem 1rem; border-radius: 99px;
+      border: 1px solid var(--border2);
+      background: rgba(56,189,248,0.06);
+      margin-bottom: 1.5rem;
+      animation: fadeUp .6s ease both;
+    }
+    .hero h1 {
+      font-size: clamp(2.2rem, 5vw, 3.8rem);
+      font-weight: 800; line-height: 1.1;
+      background: linear-gradient(135deg, var(--text) 30%, var(--cyan) 70%, var(--violet));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: fadeUp .6s .1s ease both;
+    }
+    .hero-sub {
+      margin-top: 1rem;
+      font-size: 1.05rem; color: var(--text2);
+      animation: fadeUp .6s .2s ease both;
+    }
+    .hero-meta {
+      margin-top: 1.5rem;
+      display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap;
+      animation: fadeUp .6s .3s ease both;
+    }
+    .hero-meta span {
+      font-size: .8rem; color: var(--text3);
+    }
+    .hero-meta strong { color: var(--text2); }
+
+    /* ── STAT CARDS ── */
+    .stats {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem; margin: 3rem 0 2rem;
+      animation: fadeUp .6s .35s ease both;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.4rem 1.2rem;
+      position: relative; overflow: hidden;
+      transition: border-color .3s, transform .3s;
+    }
+    .stat-card:hover { border-color: var(--border2); transform: translateY(-3px); }
+    .stat-card::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, var(--glow-c), transparent);
+      opacity: 0; transition: opacity .3s;
+    }
+    .stat-card:hover::before { opacity: 1; }
+    .stat-icon { font-size: 1.4rem; margin-bottom: .5rem; display: block; }
+    .stat-value { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+    .stat-label { font-size: .72rem; color: var(--text3); margin-top: .2rem; text-transform: uppercase; letter-spacing: .07em; }
+    .stat-card.green .stat-value { color: var(--green); }
+    .stat-card.cyan  .stat-value { color: var(--cyan); }
+    .stat-card.violet .stat-value { color: var(--violet); }
+
+    /* ── SECTIONS ── */
+    section { margin-top: 3.5rem; animation: fadeUp .5s ease both; }
+    .section-title {
+      display: flex; align-items: center; gap: .75rem;
+      font-size: 1.1rem; font-weight: 700;
+      color: var(--text); margin-bottom: 1.25rem;
+    }
+    .section-title .num {
+      font-size: .75rem; font-weight: 700;
+      color: var(--cyan); background: rgba(56,189,248,0.1);
+      border: 1px solid rgba(56,189,248,0.25);
+      border-radius: 99px; padding: .15rem .55rem;
+    }
+
+    /* ── CID CARD ── */
+    .cid-card {
+      background: linear-gradient(135deg, rgba(56,189,248,0.05), rgba(167,139,250,0.05));
+      border: 1px solid rgba(56,189,248,0.2);
+      border-radius: 1.25rem;
+      padding: 1.75rem 2rem;
+    }
+    .cid-label { font-size: .7rem; font-weight: 600; color: var(--cyan); text-transform: uppercase; letter-spacing: .1em; margin-bottom: .5rem; }
+    .cid-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: clamp(.75rem, 2vw, .95rem);
+      color: var(--text);
+      word-break: break-all;
+      background: rgba(0,0,0,.3);
+      border: 1px solid var(--border);
+      border-radius: .5rem;
+      padding: .6rem 1rem;
+      margin-bottom: 1rem;
+      cursor: pointer;
+      transition: border-color .2s;
+    }
+    .cid-value:hover { border-color: var(--cyan2); }
+    .cid-meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; }
+    .cid-meta-item { }
+    .cid-meta-item dt { font-size: .68rem; color: var(--text3); text-transform: uppercase; letter-spacing: .07em; margin-bottom: .2rem; }
+    .cid-meta-item dd { font-size: .85rem; color: var(--text2); font-family: 'JetBrains Mono', monospace; }
+    .cid-meta-item dd.ok { color: var(--green); }
+
+    /* ── GATEWAY LINKS ── */
+    .gateway-links { display: flex; flex-direction: column; gap: .6rem; margin-top: 1.25rem; }
+    .gw-link {
+      display: flex; align-items: center; gap: .75rem;
+      padding: .75rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: .75rem;
+      text-decoration: none;
+      transition: border-color .25s, background .25s, transform .2s;
+    }
+    .gw-link:hover { border-color: var(--border2); background: rgba(56,189,248,0.06); transform: translateX(4px); }
+    .gw-badge {
+      font-size: .65rem; font-weight: 700; letter-spacing: .06em;
+      padding: .2rem .5rem; border-radius: 4px; text-transform: uppercase; white-space: nowrap;
+    }
+    .gw-badge.pinata { background: rgba(56,189,248,.15); color: var(--cyan); }
+    .gw-badge.public { background: rgba(167,139,250,.15); color: var(--violet); }
+    .gw-url { font-family: 'JetBrains Mono', monospace; font-size: .72rem; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .gw-arrow { margin-left: auto; color: var(--text3); font-size: 1rem; transition: color .2s; }
+    .gw-link:hover .gw-arrow { color: var(--cyan); }
+
+    /* ── TABLE ── */
+    .table-wrap { overflow-x: auto; border-radius: 1rem; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    thead tr { background: rgba(255,255,255,0.04); }
+    thead th {
+      padding: .85rem 1rem; text-align: left;
+      font-size: .68rem; font-weight: 700; color: var(--text3);
+      text-transform: uppercase; letter-spacing: .08em;
+      white-space: nowrap;
+    }
+    tbody tr {
+      border-top: 1px solid var(--border);
+      transition: background .2s;
+    }
+    tbody tr:hover { background: rgba(255,255,255,0.03); }
+    td { padding: .7rem 1rem; color: var(--text2); vertical-align: top; }
+    td:first-child { color: var(--text); font-weight: 500; }
+    .badge {
+      display: inline-block; font-size: .65rem; font-weight: 700;
+      padding: .15rem .5rem; border-radius: 4px; white-space: nowrap;
+    }
+    .badge-pub   { background: rgba(52,211,153,.12); color: var(--green); }
+    .badge-crit  { background: rgba(248,113,113,.12); color: var(--red); }
+    .badge-semi  { background: rgba(251,191,36,.1);  color: var(--amber); }
+    .badge-priv  { background: rgba(248,113,113,.1);  color: #fb923c; }
+    .decision-ipfs    { color: var(--cyan); font-weight: 600; }
+    .decision-chain   { color: var(--violet); font-weight: 600; }
+    .decision-never   { color: var(--red); font-weight: 600; }
+    .decision-loc     { color: var(--text2); }
+
+    /* ── GLASS PANELS ── */
+    .glass {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.5rem;
+    }
+
+    /* ── TWO COL ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media(max-width:640px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* ── POLICY CARDS ── */
+    .policy-card {
+      border-radius: 1rem; padding: 1.25rem 1.4rem;
+      border: 1px solid;
+    }
+    .policy-card.no  { background: rgba(248,113,113,0.05); border-color: rgba(248,113,113,0.2); }
+    .policy-card.yes { background: rgba(52,211,153,0.05);  border-color: rgba(52,211,153,0.25); }
+    .policy-title {
+      font-size: .7rem; font-weight: 800; letter-spacing: .1em;
+      text-transform: uppercase; margin-bottom: .9rem;
+    }
+    .policy-card.no  .policy-title { color: var(--red); }
+    .policy-card.yes .policy-title { color: var(--green); }
+    .promise-item {
+      display: flex; gap: .6rem; align-items: flex-start;
+      font-size: .84rem; color: var(--text2); margin-bottom: .6rem; line-height: 1.5;
+    }
+    .promise-item:last-child { margin-bottom: 0; }
+    .promise-icon { font-size: .9rem; flex-shrink: 0; margin-top: .05rem; }
+
+    /* ── PILL HIGHLIGHT ── */
+    .highlight-pill {
+      display: inline-flex; align-items: center; gap: .4rem;
+      font-size: .78rem; font-weight: 600;
+      padding: .3rem .85rem; border-radius: 99px;
+      background: rgba(167,139,250,0.1);
+      border: 1px solid rgba(167,139,250,0.25);
+      color: var(--violet);
+    }
+
+    /* ── CONCEPT CARDS ── */
+    .concept-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media(max-width:640px) { .concept-grid { grid-template-columns: 1fr; } }
+    .concept-card {
+      border-radius: 1rem; padding: 1.25rem 1.4rem;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .concept-card h3 {
+      font-size: .82rem; font-weight: 700; margin-bottom: .6rem;
+      display: flex; align-items: center; gap: .5rem;
+    }
+    .concept-card p { font-size: .82rem; color: var(--text2); line-height: 1.65; }
+    .concept-icon { font-size: 1.1rem; }
+
+    /* ── AVAILABILITY ── */
+    .avail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media(max-width:640px) { .avail-grid { grid-template-columns: 1fr; } }
+    .avail-card {
+      border-radius: 1rem; padding: 1.2rem 1.4rem;
+      border: 1px solid var(--border);
+    }
+    .avail-card.avail { background: rgba(52,211,153,.04); border-color: rgba(52,211,153,.2); }
+    .avail-card.delete { background: rgba(251,191,36,.04); border-color: rgba(251,191,36,.2); }
+    .avail-card h3 { font-size: .8rem; font-weight: 700; margin-bottom: .6rem; }
+    .avail-card.avail h3 { color: var(--green); }
+    .avail-card.delete h3 { color: var(--amber); }
+    .avail-card p { font-size: .82rem; color: var(--text2); line-height: 1.65; }
+
+    /* ── ARWEAVE NOTE ── */
+    .arweave-note {
+      border-radius: 1rem; padding: 1.2rem 1.5rem;
+      background: rgba(167,139,250,0.04);
+      border: 1px solid rgba(167,139,250,0.15);
+      font-size: .82rem; color: var(--text3); line-height: 1.65;
+    }
+    .arweave-note strong { color: var(--violet); }
+
+    /* ── PSAV ── */
+    .psav-bar {
+      margin-top: 2.5rem;
+      padding: 1rem 1.5rem;
+      border-radius: .75rem;
+      background: rgba(56,189,248,0.05);
+      border: 1px solid rgba(56,189,248,0.15);
+      font-size: .82rem; color: var(--text2);
+      display: flex; align-items: center; gap: .75rem;
+    }
+    .psav-bar .psav-icon { font-size: 1rem; color: var(--cyan); }
+
+    /* ── FOOTER ── */
+    footer {
+      margin-top: 4rem; padding: 2rem 1.5rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: .75rem; color: var(--text3);
+    }
+    footer strong { color: var(--text2); }
+
+    /* ── CODE BLOCK ── */
+    .code-block {
+      background: rgba(0,0,0,.4);
+      border: 1px solid var(--border);
+      border-radius: .75rem;
+      padding: 1rem 1.2rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .78rem;
+      color: var(--green);
+      overflow-x: auto;
+      white-space: pre;
+      line-height: 1.7;
+    }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); }
+      50%       { box-shadow: 0 0 0 6px rgba(52,211,153,0.15); }
+    }
+    .pinned-dot {
+      display: inline-block; width: 8px; height: 8px;
+      border-radius: 50%; background: var(--green);
+      animation: pulse-glow 2.4s infinite;
+      vertical-align: middle; margin-right: .35rem;
+    }
+
+    /* ── DIVIDER ── */
+    hr.div { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+
+    /* Responsive */
+    @media(max-width: 700px) {
+      nav { padding: .75rem 1rem; }
+      .hero { padding: 3rem 0 2rem; }
+      .cid-value { font-size: .68rem; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">PactTrail</span>
+  <span class="nav-sep">/</span>
+  <span class="nav-sub">Lab 15 — Sesión 18</span>
+  <span class="nav-badge">PINNED</span>
+</nav>
+
+<div class="wrapper">
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="hero-label">Lab 15 · IPFS + Pinata · Content-Addressed Storage</div>
+    <h1>Ciclo completo:<br>CID → Pin → Resolve</h1>
+    <p class="hero-sub">Venture <strong>PactTrail</strong> — protocolo escrow ERC-20 sobre redes EVM públicas</p>
+    <div class="hero-meta">
+      <span><strong>Fecha</strong> 2026-10-13</span>
+      <span><strong>Sesión</strong> 18</span>
+      <span><strong>Provider</strong> Pinata</span>
+      <span><strong>Stack</strong> Node.js · IPFS · Pinata API</span>
+    </div>
+  </header>
+
+  <!-- STAT CARDS -->
+  <div class="stats">
+    <div class="stat-card green">
+      <span class="stat-icon">🟢</span>
+      <div class="stat-value"><span class="pinned-dot"></span>PINNED</div>
+      <div class="stat-label">Estado del pin</div>
+    </div>
+    <div class="stat-card cyan">
+      <span class="stat-icon">✅</span>
+      <div class="stat-value">HTTP 200 OK</div>
+      <div class="stat-label">Gateway resolve</div>
+    </div>
+    <div class="stat-card">
+      <span class="stat-icon">📦</span>
+      <div class="stat-value">557 bytes</div>
+      <div class="stat-label">Tamaño del pin</div>
+    </div>
+    <div class="stat-card violet">
+      <span class="stat-icon">🔐</span>
+      <div class="stat-value">Sin PII</div>
+      <div class="stat-label">Artefacto subido</div>
+    </div>
+  </div>
+
+  <!-- 1. CID y artefacto -->
+  <section>
+    <div class="section-title">
+      <span class="num">01</span>
+      Artefacto e identificador de contenido
+    </div>
+
+    <div class="cid-card">
+      <div class="cid-label">CID (Content Identifier)</div>
+      <div class="cid-value" id="cid-copy" title="Clic para copiar">bafkreiggwzqcnu2ovnboop6zdv7ctimj2p2gvr3kjzxfp7k65ztllknhyq</div>
+      <div class="cid-meta-grid">
+        <div class="cid-meta-item">
+          <dt>Archivo</dt>
+          <dd>venture-hello.json</dd>
+        </div>
+        <div class="cid-meta-item">
+          <dt>Nombre en Pinata</dt>
+          <dd>pacttrail-lab15-venture-hello</dd>
+        </div>
+        <div class="cid-meta-item">
+          <dt>Timestamp pin</dt>
+          <dd>2026-10-13T06:39:17.940Z</dd>
+        </div>
+        <div class="cid-meta-item">
+          <dt>Estado</dt>
+          <dd class="ok">✅ PINNED</dd>
+        </div>
+        <div class="cid-meta-item">
+          <dt>Versión CID</dt>
+          <dd>CIDv1</dd>
+        </div>
+        <div class="cid-meta-item">
+          <dt>Tamaño</dt>
+          <dd>557 bytes</dd>
+        </div>
+      </div>
+    </div>
+
+    <div class="gateway-links" style="margin-top:1rem;">
+      <a href="https://gateway.pinata.cloud/ipfs/bafkreiggwzqcnu2ovnboop6zdv7ctimj2p2gvr3kjzxfp7k65ztllknhyq"
+         target="_blank" rel="noopener" class="gw-link" id="link-pinata-gateway">
+        <span class="gw-badge pinata">Pinata</span>
+        <span class="gw-url">gateway.pinata.cloud/ipfs/bafkreiggwzqcnu2ovnboop6zdv7ctimj2p2gvr3kjzxfp7k65ztllknhyq</span>
+        <span class="gw-arrow">↗</span>
+      </a>
+      <a href="https://ipfs.io/ipfs/bafkreiggwzqcnu2ovnboop6zdv7ctimj2p2gvr3kjzxfp7k65ztllknhyq"
+         target="_blank" rel="noopener" class="gw-link" id="link-ipfsio-gateway">
+        <span class="gw-badge public">Público</span>
+        <span class="gw-url">ipfs.io/ipfs/bafkreiggwzqcnu2ovnboop6zdv7ctimj2p2gvr3kjzxfp7k65ztllknhyq</span>
+        <span class="gw-arrow">↗</span>
+      </a>
+    </div>
+  </section>
+
+  <!-- 2. Evidencia curl -->
+  <section>
+    <div class="section-title">
+      <span class="num">02</span>
+      Evidencia de resolución — curl HTTP
+    </div>
+    <div class="code-block">$ curl https://gateway.pinata.cloud/ipfs/bafkreiggwzqcnu2ovnboop6zdv7ctimj2p2gvr3kjzxfp7k65ztllknhyq
+
+StatusCode        : 200
+StatusDescription : OK
+RawContentLength  : 557
+CF-Ray            : a49c5f73be71b0bc-GUA
+
+Content:
+{
+  "venture": "PactTrail",
+  "lab": "Lab 15 — IPFS + Pinata: CID + pin + resolve",
+  "session": "Sesión 18",
+  "description": "Escrow ERC-20 para redes EVM públicas.",
+  "message": "Artefacto de prueba sin PII — ciclo content-addressed completo.",
+  "version": "1.0.0",
+  "date": "2026-10-13",
+  "tags": ["ipfs", "pinata", "content-addressed", "escrow", "evm"]
+}</div>
+  </section>
+
+  <!-- 3. Clasificación de datos -->
+  <section>
+    <div class="section-title">
+      <span class="num">03</span>
+      Clasificación de datos de PactTrail
+    </div>
+    <p style="font-size:.85rem;color:var(--text2);margin-bottom:1rem;">
+      PactTrail es un protocolo de escrow ERC-20. Sus datos se clasifican por sensibilidad y durabilidad para determinar el destino de almacenamiento correcto.
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Tipo de dato</th>
+            <th>Sensibilidad</th>
+            <th>Durabilidad</th>
+            <th>Destino</th>
+            <th>Decisión</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Código fuente de contratos</td>
+            <td><span class="badge badge-pub">Pública</span></td>
+            <td>Permanente</td>
+            <td>Git + IPFS + pin</td>
+            <td class="decision-ipfs">IPFS + pin ★</td>
+          </tr>
+          <tr>
+            <td>ABI compilada del contrato</td>
+            <td><span class="badge badge-pub">Pública</span></td>
+            <td>Media-alta</td>
+            <td>Git / CDN</td>
+            <td class="decision-loc">Location-addressed</td>
+          </tr>
+          <tr>
+            <td>venture-hello.json (lab)</td>
+            <td><span class="badge badge-pub">Pública / sin PII</span></td>
+            <td>Temporal / demo</td>
+            <td>Pinata</td>
+            <td class="decision-ipfs">IPFS + pin ✅</td>
+          </tr>
+          <tr>
+            <td>Dirección de fábrica desplegada</td>
+            <td><span class="badge badge-pub">Pública (on-chain)</span></td>
+            <td>Permanente</td>
+            <td>On-chain + README</td>
+            <td class="decision-chain">On-chain</td>
+          </tr>
+          <tr>
+            <td>Hash de evidencia de requisito</td>
+            <td><span class="badge badge-pub">Pública (on-chain)</span></td>
+            <td>Permanente</td>
+            <td>On-chain</td>
+            <td class="decision-chain">On-chain</td>
+          </tr>
+          <tr>
+            <td>JWT / API keys</td>
+            <td><span class="badge badge-crit">Crítica</span></td>
+            <td>N/A</td>
+            <td>.env local (gitignored)</td>
+            <td class="decision-never">never-upload</td>
+          </tr>
+          <tr>
+            <td>Clave privada deployer</td>
+            <td><span class="badge badge-crit">Crítica</span></td>
+            <td>N/A</td>
+            <td>.env local (gitignored)</td>
+            <td class="decision-never">never-upload</td>
+          </tr>
+          <tr>
+            <td>KYC / identidad de partes</td>
+            <td><span class="badge badge-priv">Privada</span></td>
+            <td>N/A</td>
+            <td>Off-chain / nunca IPFS</td>
+            <td class="decision-never">never-permanent</td>
+          </tr>
+          <tr>
+            <td>Datos de wallets de usuarios</td>
+            <td><span class="badge badge-semi">Semi-pública</span></td>
+            <td>Permanente</td>
+            <td>On-chain únicamente</td>
+            <td class="decision-chain">On-chain</td>
+          </tr>
+          <tr>
+            <td>Documentación (STORAGE.md)</td>
+            <td><span class="badge badge-pub">Pública</span></td>
+            <td>Media</td>
+            <td>Git</td>
+            <td class="decision-loc">Location-addressed</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:.75rem;color:var(--text3);margin-top:.75rem;">★ raro permanence candidate</p>
+  </section>
+
+  <!-- 4. Gateway vs Protocolo -->
+  <section>
+    <div class="section-title">
+      <span class="num">04</span>
+      Protocolo IPFS vs Gateway HTTP
+    </div>
+    <div class="concept-grid">
+      <div class="concept-card">
+        <h3><span class="concept-icon">🌐</span> Protocolo IPFS</h3>
+        <p>Red peer-to-peer donde los nodos se identifican por contenido (CID = hash del contenido). El acceso nativo requiere un cliente como Kubo o Brave. Es descentralizado por diseño: el contenido vive en cualquier nodo que lo tenga.</p>
+      </div>
+      <div class="concept-card">
+        <h3><span class="concept-icon">🔗</span> Gateway HTTP</h3>
+        <p>Servidor centralizado que actúa como puente entre HTTP e IPFS. Permite resolver <code style="font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--cyan)">https://gateway/ipfs/&lt;CID&gt;</code> sin cliente IPFS. Conveniente, pero introduce un punto centralizado de fallo: si el gateway cae, la URL falla aunque el contenido siga en la red.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Availability vs Deletion -->
+  <section>
+    <div class="section-title">
+      <span class="num">05</span>
+      Disponibilidad vs Política de eliminación
+    </div>
+    <div class="avail-grid">
+      <div class="avail-card avail">
+        <h3>📡 Availability</h3>
+        <p>Mientras el pin esté activo en Pinata, al menos un nodo almacena y sirve el CID. Cualquier gateway público puede resolverlo siempre que exista al menos un nodo con el contenido.</p>
+      </div>
+      <div class="avail-card delete">
+        <h3>🗑️ Unpin &amp; Deletion</h3>
+        <p>IPFS no garantiza borrado por diseño. Si unpinneamos, Pinata dejará de servir el CID, pero otros nodos o gateways que lo hayan cacheado podrían seguir sirviéndolo por tiempo indeterminado. <strong>Si unpinneamos, esperamos que el CID deje de resolverse desde el gateway de Pinata en horas o días, sin poder garantizar su desaparición total de la red.</strong></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Promesas -->
+  <section>
+    <div class="section-title">
+      <span class="num">06</span>
+      Compromisos de PactTrail
+    </div>
+    <div class="two-col">
+      <div class="policy-card no">
+        <div class="policy-title">✗ PactTrail NO hará</div>
+        <div class="promise-item">
+          <span class="promise-icon">🚫</span>
+          <span>Subir PII, KYC ni datos de identidad de las partes a IPFS público. Nombres, correos, documentos y wallets vinculadas a personas nunca irán a una red inmutable.</span>
+        </div>
+        <div class="promise-item">
+          <span class="promise-icon">🚫</span>
+          <span>Commitear JWT, API keys ni claves privadas en ningún repositorio. Ningún secreto aparecerá en el historial de Git, CI/CD ni logs públicos.</span>
+        </div>
+        <div class="promise-item">
+          <span class="promise-icon">🚫</span>
+          <span>Ofrecer garantía de borrado de contenido pinneado en IPFS. El retiro de pin es best-effort, no un borrado garantizado del protocolo.</span>
+        </div>
+      </div>
+      <div class="policy-card yes">
+        <div class="policy-title">✓ PactTrail SÍ hará</div>
+        <div class="promise-item">
+          <span class="promise-icon">✅</span>
+          <span>Mantener un pin activo y verificable para cualquier artefacto de referencia técnica anunciado públicamente (código de contrato, ABI, documentación de versiones), permitiendo que los usuarios verifiquen la integridad del contenido mediante su CID sin depender de un servidor centralizado.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. Arweave -->
+  <section>
+    <div class="section-title">
+      <span class="num">07</span>
+      Nota: Arweave <span style="font-size:.7rem;color:var(--text3);font-weight:400;margin-left:.5rem;">(contraste — no utilizado en este lab)</span>
+    </div>
+    <div class="arweave-note">
+      <strong>Arweave</strong> es una red de almacenamiento permanente con modelo de pago único (<em>endowment</em>): al subir un archivo se paga una tarifa que financia su almacenamiento indefinido. A diferencia de IPFS con pinning activo, no requiere renovación de pin. Para PactTrail podría ser relevante para versiones auditadas de contratos que se quieran preservar sin mantenimiento operativo. <strong>No se utilizó Arweave en este lab</strong>: el objetivo es demostrar el ciclo IPFS + pin; Arweave aparece aquí solo como nota de contraste (pay-once / endowment).
+    </div>
+  </section>
+
+  <!-- PSAV -->
+  <div class="psav-bar">
+    <span class="psav-icon">📋</span>
+    <span>Esta política se documenta teniendo presente el marco <strong style="color:var(--cyan)">PSAV / 15-2026</strong>.</span>
+  </div>
+
+  <hr class="div" />
+
+  <!-- Referencias -->
+  <section>
+    <div class="section-title">
+      <span class="num">08</span>
+      Archivos del lab
+    </div>
+    <div class="glass" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.75rem;">
+      <div>
+        <div style="font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.3rem;">Artefacto IPFS</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.8rem;color:var(--cyan)">venture-hello.json</div>
+      </div>
+      <div>
+        <div style="font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.3rem;">Script upload</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.8rem;color:var(--cyan)">upload-to-pinata.js</div>
+      </div>
+      <div>
+        <div style="font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.3rem;">Política de datos</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.8rem;color:var(--cyan)">STORAGE.md</div>
+      </div>
+      <div>
+        <div style="font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.3rem;">Log de evidencia</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.8rem;color:var(--cyan)">lab15-log.md</div>
+      </div>
+      <div>
+        <div style="font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.3rem;">Credenciales</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.8rem;color:var(--text3)">.env (gitignored) · .env.example</div>
+      </div>
+      <div>
+        <div style="font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.3rem;">Dashboard</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:.8rem;color:var(--violet)">app.pinata.cloud/pinmanager</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <strong>PactTrail</strong> · Lab 15 — IPFS + Pinata · Sesión 18 · 2026-10-13<br/>
+  <span style="margin-top:.4rem;display:block;">
+    CID: <span style="font-family:'JetBrains Mono',monospace;">bafkreiggwzqcnu2ovnboop6zdv7ctimj2p2gvr3kjzxfp7k65ztllknhyq</span>
+  </span>
+</footer>
+
+<script>
+  document.getElementById('cid-copy').addEventListener('click', function () {
+    const cid = 'bafkreiggwzqcnu2ovnboop6zdv7ctimj2p2gvr3kjzxfp7k65ztllknhyq';
+    navigator.clipboard.writeText(cid).then(() => {
+      const el = document.getElementById('cid-copy');
+      const prev = el.textContent;
+      el.textContent = '✓ copiado';
+      el.style.color = '#34d399';
+      setTimeout(() => { el.textContent = prev; el.style.color = ''; }, 1800);
+    }).catch(() => {});
+  });
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.style.animation = 'fadeUp .5s ease both';
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('section').forEach(s => {
+    s.style.opacity = '0';
+    observer.observe(s);
+  });
+</script>
+
+</body>
+</html>
